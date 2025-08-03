@@ -1,7 +1,7 @@
 # CANLogParser
 
-A simple parser that converts Vector `.asc` CAN log files into a pandas
-`DataFrame`.
+A simple parser that converts Vector `.asc` CAN or CAN FD log files into a
+pandas `DataFrame`.
 
 ## Usage
 

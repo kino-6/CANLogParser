@@ -30,6 +30,13 @@ def sample_path() -> str:
     return "tests/sample.asc"
 
 
+@pytest.fixture
+def fd_sample_path() -> str:
+    """Path to a sample CAN FD ``.asc`` log file."""
+
+    return "tests/sample_fd.asc"
+
+
 class TestParseLine:
     """Line-level parsing scenarios for :meth:`ASCParser.parse_line`."""
 
@@ -70,6 +77,39 @@ class TestParseLine:
         assert parser.parse_line("0.050000 1 ErrorFrame") is None
         assert parser.parse_line("0.300000 1 0x100 4 01 02") is None
 
+    def test_can_fd_line(self, parser: ASCParser) -> None:
+        """CAN FD frames with extra flags are parsed correctly."""
+
+        line = (
+            "0.400000 1 0x400 Rx CANFD BRS ESI 16 "
+            "00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F"
+        )
+        record = parser.parse_line(line)
+        assert record == {
+            "timestamp": 0.4,
+            "channel": 1,
+            "can_id": 0x400,
+            "dlc": 16,
+            "data": [
+                0x00,
+                0x01,
+                0x02,
+                0x03,
+                0x04,
+                0x05,
+                0x06,
+                0x07,
+                0x08,
+                0x09,
+                0x0A,
+                0x0B,
+                0x0C,
+                0x0D,
+                0x0E,
+                0x0F,
+            ],
+        }
+
 
 class TestFileConversion:
     """Integration tests for file-level parsing helpers."""
@@ -94,4 +134,33 @@ class TestFileConversion:
         df = asc_to_dataframe(sample_path)
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 3
+
+    def test_parse_file_can_fd(self, parser: ASCParser, fd_sample_path: str) -> None:
+        """``parse_file`` also supports CAN FD frames."""
+
+        df = parser.parse_file(fd_sample_path)
+        assert list(df["timestamp"]) == [0.0]
+        assert df["channel"].tolist() == [1]
+        assert df["can_id"].tolist() == [0x400]
+        assert df["dlc"].tolist() == [16]
+        assert df["data"].tolist() == [
+            [
+                0x00,
+                0x01,
+                0x02,
+                0x03,
+                0x04,
+                0x05,
+                0x06,
+                0x07,
+                0x08,
+                0x09,
+                0x0A,
+                0x0B,
+                0x0C,
+                0x0D,
+                0x0E,
+                0x0F,
+            ]
+        ]
 

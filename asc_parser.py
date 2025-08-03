@@ -1,4 +1,4 @@
-"""Parser for Vector ASC CAN log files."""
+"""Parser for Vector ASC CAN log files supporting classical CAN and CAN FD."""
 
 from __future__ import annotations
 
@@ -16,9 +16,10 @@ class ASCParser:
         Translate a single line of text into a dictionary containing
         ``timestamp``, ``channel``, ``can_id``, ``dlc`` and ``data`` fields.
         Lines that are comments, error frames or otherwise malformed are
-        skipped by returning ``None``.  Optional direction (``Rx``/``Tx``)
-        and frame type (``d``/``r``) tokens are tolerated and ignored, and
-        any extra tokens following the payload are discarded.
+        skipped by returning ``None``.  Optional direction (``Rx``/``Tx``),
+        frame type (``d``/``r``) and CAN FD specific flags (``CANFD``,
+        ``BRS``, ``ESI``) are tolerated and ignored, and any extra tokens
+        following the payload are discarded.
 
     ``parse_file``
         Iterate over all lines of a log file and return a
@@ -27,6 +28,8 @@ class ASCParser:
 
     def parse_line(self, line: str) -> Optional[Dict[str, object]]:
         """Parse a single line from an ASC file.
+
+        Supports both classical CAN and CAN FD frames.
 
         Parameters
         ----------
@@ -56,13 +59,16 @@ class ASCParser:
             can_id = int(parts[2], 16) if parts[2].startswith("0x") else int(parts[2])
 
             idx = 3
-            if len(parts) > idx and parts[idx] in {"Rx", "Tx"}:
+            # Skip optional tokens such as direction, frame type or CAN FD
+            # flags (e.g. ``Rx``, ``Tx``, ``d``, ``CANFD``, ``BRS``).  The first
+            # purely numeric token encountered is assumed to be the DLC.
+            while idx < len(parts) and not parts[idx].isdigit():
                 idx += 1
-            if len(parts) > idx and parts[idx] in {"d", "r"}:
-                idx += 1
-            if len(parts) <= idx:
+            if idx >= len(parts):
                 return None
             dlc = int(parts[idx])
+            if not 0 <= dlc <= 64:
+                return None
             data_start = idx + 1
             if len(parts) < data_start + dlc:
                 return None
